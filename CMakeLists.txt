@@ -30,7 +30,7 @@ include(${CMAKE_SOURCE_DIR}/CMake/BuildThirdPartyProject.cmake)
 ############################################
 
 # Set the build type for the target project
-set(${MAIN_PROJECT_NAME}_BUILD_TARGET_TYPE "{{ project_type }}" CACHE STRING "Build target options")
+set(${MAIN_PROJECT_NAME}_BUILD_TARGET_TYPE "static_library" CACHE STRING "Build target options")
 set_property(CACHE ${MAIN_PROJECT_NAME}_BUILD_TARGET_TYPE PROPERTY STRINGS executable dynamic_library static_library)
 
 # Option to build the test project

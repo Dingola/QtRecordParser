@@ -1,0 +1,12 @@
+# This file is managed by Copier. Do not edit it manually.
+_commit: a53461d
+_src_path: gh:Dingola/QtWidgetsTemplate
+display_name: QtRecordParser
+docker_name: qtrecordparser
+macro_prefix: QTRECORDPARSER
+organization_domain: AdrianHelbig.de
+organization_name: Dingola
+project_description: A Qt 6 Widgets project.
+project_name: QtRecordParser
+project_type: static_library
+repository_owner: Dingola

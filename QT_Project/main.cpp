@@ -24,10 +24,10 @@ auto main(int argc, char* argv[]) -> int
     QCoreApplication::setAttribute(Qt::AA_UseOpenGLES);
 
     QApplication app(argc, argv);
-    app.setApplicationName(QStringLiteral("{{ project_name }}"));
-    app.setApplicationDisplayName(QStringLiteral("{{ display_name }}"));
-    app.setOrganizationName(QStringLiteral("{{ organization_name }}"));
-    app.setOrganizationDomain(QStringLiteral("{{ organization_domain }}"));
+    app.setApplicationName(QStringLiteral("QtRecordParser"));
+    app.setApplicationDisplayName(QStringLiteral("QtRecordParser"));
+    app.setOrganizationName(QStringLiteral("Dingola"));
+    app.setOrganizationDomain(QStringLiteral("AdrianHelbig.de"));
 
     // TODO: Add your main window or application logic here
 
