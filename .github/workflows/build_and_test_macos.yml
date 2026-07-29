@@ -25,8 +25,8 @@ env:
 #------------------------------------------------
 jobs:
   build_and_test:
-    name: Build and Test on macOS Latest
-    runs-on: macos-latest
+    name: Build and Test on macOS 15
+    runs-on: macos-15
 
     steps:
       # Checkout the repository and submodules
@@ -73,6 +73,6 @@ jobs:
       # Run Tests
       - name: Run Tests
         env:
-          DYLD_LIBRARY_PATH: ${{ env.CMAKE_PREFIX_PATH }}/lib
+          DYLD_LIBRARY_PATH: ${{ github.workspace }}/../Qt/${{ env.QT_VERSION }}/clang_64/lib
         run: |
           ./build/QT_Project_Tests/${{ env.MAIN_PROJECT_NAME }}_Tests.app/Contents/MacOS/${{ env.MAIN_PROJECT_NAME }}_Tests
