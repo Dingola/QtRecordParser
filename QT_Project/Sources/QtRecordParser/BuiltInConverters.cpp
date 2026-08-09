@@ -46,11 +46,16 @@ auto IntegerConverter::convert(QStringView input,
     const int base = options.value(QStringLiteral("base"), 10).toInt();
 
     bool valid = false;
-    const qlonglong value = input.toString().toLongLong(&valid, base);
+    qlonglong value = 0;
+
+    if (base >= 2 && base <= 36)
+    {
+        value = input.toString().toLongLong(&valid, base);
+    }
 
     ConversionResult result;
 
-    if (valid && base >= 2 && base <= 36)
+    if (valid)
     {
         result = ConversionResult{value, QString(), true};
     }
