@@ -16,6 +16,13 @@
 
 ## 📖 [Table of Contents]
 - [Description](#description)
+- [Design Overview](#design-overview)
+  - [Processing Flow](#processing-flow)
+  - [Class Responsibilities](#class-responsibilities)
+  - [Basic Usage](#basic-usage)
+  - [Built-in Converters](#built-in-converters)
+  - [Custom Converters](#custom-converters)
+  - [Error Handling and Threading](#error-handling-and-threading)
 - [Code Coverage Graphs](#-code-coverage-graphs)
 - [Tokens for GitHub Actions](#-tokens-for-github-actions)
 - [Solution Folder Structure](#solution-folder-structure)
@@ -37,17 +44,180 @@
 <br><br>
 
 ## [Description]
-A Qt 6 Widgets project.
+QtRecordParser is a Qt 6 library for converting structured text records into dynamically
+named, typed values. A serializable configuration describes the record format, its fields,
+regular-expression capture patterns and the converter used for each captured value.
 
-This project was generated from a template for creating Qt-based applications. The solution
-is divided into two parts: the main project and a test project. By default, only the 
-main project is built. The test project can be built if desired, controlled by a CMake 
-boolean variable `<PROJECT_NAME>_BUILD_TEST_PROJECT`. Additionally, the CMake variable 
-`<PROJECT_NAME>_BUILD_TARGET_TYPE` must be set to `static_library` for the test project 
-to be executed.
+The library is not tied to log files or a fixed record model. It can parse records from
+files, streams, imported datasets or any other source that can provide one complete record
+as a `QString`. Built-in converters handle text, signed integers, floating-point numbers,
+booleans and date-time values. Applications can register additional converters without
+changing the parser.
 
-The template provides a minimal starting point for Qt applications, supports documentation 
-generation with Doxygen, and includes GitHub workflows (CI builds) for both Linux and Windows.
+This solution is divided into two parts: the main project and a test project. By default,
+only the main project is built. The test project can be built if desired, controlled by a
+CMake boolean variable `<PROJECT_NAME>_BUILD_TEST_PROJECT`. Additionally, the CMake variable
+`<PROJECT_NAME>_BUILD_TARGET_TYPE` must be set to `static_library` for the test project to be
+executed.
+<br><br>
+
+## [Design Overview]
+
+QtRecordParser separates the description of a record, the extraction of its fields and the
+conversion of captured text. This keeps configurations serializable and allows parsing logic
+to be reused by different applications.
+
+### Processing Flow
+
+```text
+ParserConfiguration
+        |
+        v
+FormatRecordParser -----> ConverterRegistry
+        |                         |
+        |                         v
+        |                  ValueConverter
+        |                         |
+        +-----------+-------------+
+                    |
+                    v
+               ParseResult
+```
+
+1. `ParserConfiguration` describes the complete input format and its fields.
+2. `FormatRecordParser` validates the configuration and builds one anchored regular
+   expression from its placeholders and field patterns.
+3. During `parse()`, the parser extracts each captured text value.
+4. `ConverterRegistry` resolves the converter identifier configured for that field.
+5. The selected `ValueConverter` transforms the captured text into a typed `QVariant`.
+6. `ParseResult` returns either the completed `ParsedRecord` or structured failure details.
+
+For example, the format `{id};{name};{amount}` can transform the input
+`42;Example;19.95` into an integer `id`, a text `name` and a floating-point `amount`.
+
+### Class Responsibilities
+
+| Type | Responsibility |
+|------|----------------|
+| `ParserConfiguration` | Stores the format, field definitions and unknown-field policy. It can be serialized to and restored from JSON. |
+| `FieldConfiguration` | Describes one placeholder, including its display name, capture pattern, converter identifier, converter options and trimming behavior. |
+| `RecordParser` | Defines the common parser interface and makes alternative parser implementations possible. |
+| `FormatRecordParser` | Implements placeholder-based parsing, validates the configuration and coordinates extraction and conversion. |
+| `ConverterRegistry` | Maps stable converter identifiers to built-in or application-defined converter instances. |
+| `ValueConverter` | Defines the interface for converting captured text into a typed `QVariant`. |
+| `TextConverter`, `IntegerConverter`, `FloatingPointConverter`, `BooleanConverter`, `DateTimeConverter` | Provide the standard conversions included with the library. |
+| `ParseResult` | Contains the parsed record or a structured error category, field identifier and message. |
+
+### Basic Usage
+
+```cpp
+#include <QtRecordParser/BuiltInConverters.h>
+#include <QtRecordParser/FormatRecordParser.h>
+
+QtRecordParser::ParserConfiguration configuration;
+configuration.format = QStringLiteral("{id};{name};{amount}");
+configuration.allow_unknown_fields = false;
+configuration.fields = {
+    {QStringLiteral("id"), QStringLiteral("Identifier"), QStringLiteral(R"(\d+)"),
+     QtRecordParser::ConverterId::Integer, QVariantMap(), true},
+    {QStringLiteral("name"), QStringLiteral("Name"), QStringLiteral(R"([^;]+)"),
+     QtRecordParser::ConverterId::Text, QVariantMap(), true},
+    {QStringLiteral("amount"), QStringLiteral("Amount"),
+     QStringLiteral(R"([+-]?\d+(?:\.\d+)?)"),
+     QtRecordParser::ConverterId::FloatingPoint, QVariantMap(), true}};
+
+const QtRecordParser::FormatRecordParser parser(configuration);
+const QtRecordParser::ParseResult result =
+    parser.parse(QStringLiteral("42;Example;19.95"), QStringLiteral("orders.csv"));
+
+if (result.succeeded())
+{
+    const qlonglong id = result.record.value(QStringLiteral("id")).toLongLong();
+    const QString name = result.record.value(QStringLiteral("name")).toString();
+    const double amount = result.record.value(QStringLiteral("amount")).toDouble();
+}
+```
+
+Unknown placeholders can optionally be accepted as text fields by setting
+`allow_unknown_fields` to `true`. Explicit field definitions are still useful when values
+need validation, conversion, trimming or converter-specific options.
+
+### Built-in Converters
+
+The default `ConverterRegistry` contains the following converters:
+
+| Converter | Identifier | Result | Options |
+|-----------|------------|--------|---------|
+| `TextConverter` | `text` | `QString` | None. The captured text is returned unchanged. |
+| `IntegerConverter` | `integer` | `qlonglong` | `base`: number base from 2 through 36; defaults to 10. |
+| `FloatingPointConverter` | `floating_point` | `double` | None. |
+| `BooleanConverter` | `boolean` | `bool` | `true_values`, `false_values` and `case_sensitive`. |
+| `DateTimeConverter` | `datetime` | `QDateTime` | `accept_iso` and an ordered list of `formats`. |
+
+Converter options are stored in `FieldConfiguration::converter_options`. The following
+configuration accepts application-specific boolean tokens and a non-ISO date-time format:
+
+```cpp
+QtRecordParser::ParserConfiguration configuration;
+configuration.format = QStringLiteral("{active};{created_at}");
+configuration.allow_unknown_fields = false;
+configuration.fields = {
+    {QStringLiteral("active"), QStringLiteral("Active"),
+     QStringLiteral(R"(enabled|disabled)"), QtRecordParser::ConverterId::Boolean,
+     QVariantMap{{QStringLiteral("true_values"),
+                  QStringList{QStringLiteral("enabled")}},
+                 {QStringLiteral("false_values"),
+                  QStringList{QStringLiteral("disabled")}},
+                 {QStringLiteral("case_sensitive"), false}},
+     true},
+    {QStringLiteral("created_at"), QStringLiteral("Created at"),
+     QStringLiteral(R"(\d{2}\.\d{2}\.\d{4} \d{2}:\d{2})"),
+     QtRecordParser::ConverterId::DateTime,
+     QVariantMap{{QStringLiteral("accept_iso"), false},
+                 {QStringLiteral("formats"),
+                  QStringList{QStringLiteral("dd.MM.yyyy HH:mm")}}},
+     true}};
+
+const QtRecordParser::FormatRecordParser parser(configuration);
+const QtRecordParser::ParseResult result = parser.parse(
+    QStringLiteral("enabled;10.08.2026 14:30"), QStringLiteral("users.csv"));
+
+if (result.succeeded())
+{
+    const bool active = result.record.value(QStringLiteral("active")).toBool();
+    const QDateTime created_at =
+        result.record.value(QStringLiteral("created_at")).toDateTime();
+}
+```
+
+If no custom registry is passed to `FormatRecordParser`, these converters are available
+automatically through `ConverterRegistry::create_default()`.
+
+### Custom Converters
+
+Applications can derive from `ValueConverter`, assign the converter a stable identifier and
+add an immutable instance to a registry:
+
+```cpp
+QtRecordParser::ConverterRegistry registry =
+    QtRecordParser::ConverterRegistry::create_default();
+
+registry.add(std::make_shared<UppercaseConverter>());
+
+const QtRecordParser::FormatRecordParser parser(configuration, registry);
+```
+
+### Error Handling and Threading
+
+Parsing failures do not require exceptions. `ParseResult` distinguishes invalid
+configuration, pattern mismatches and conversion failures through `ParseError`. Conversion
+failures also identify the affected field and provide a descriptive message.
+
+`parse()` does not modify the parser. Independent parser copies can therefore be passed to
+worker threads and used in parallel. Custom converters shared between those copies must also
+be immutable or otherwise thread-safe. Configuration changes through `set_configuration()`
+should be completed before concurrent parsing begins.
+
 <br><br>
 
 ## 📊 [Code Coverage Graphs]
