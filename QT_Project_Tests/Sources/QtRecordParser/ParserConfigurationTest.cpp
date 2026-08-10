@@ -120,6 +120,40 @@ TEST_F(ParserConfigurationTest, AppliesDefaultsToOptionalProperties)
 }
 
 /**
+ * @brief Verifies an empty fields array without requesting an error message.
+ */
+TEST_F(ParserConfigurationTest, AcceptsEmptyFieldsWithoutErrorOutput)
+{
+    const QJsonObject object{{QStringLiteral("format"), QStringLiteral("fixed")},
+                             {QStringLiteral("allow_unknown_fields"), false},
+                             {QStringLiteral("fields"), QJsonArray()}};
+
+    const QtRecordParser::ParserConfiguration configuration =
+        QtRecordParser::ParserConfiguration::from_json(object);
+
+    EXPECT_EQ(configuration.format, QStringLiteral("fixed"));
+    EXPECT_FALSE(configuration.allow_unknown_fields);
+    EXPECT_TRUE(configuration.fields.isEmpty());
+}
+
+/**
+ * @brief Verifies rejection when the required fields member is missing.
+ */
+TEST_F(ParserConfigurationTest, RejectsMissingFieldsMember)
+{
+    const QJsonObject object{{QStringLiteral("format"), QStringLiteral("{value}")}};
+
+    QString error;
+
+    const QtRecordParser::ParserConfiguration configuration =
+        QtRecordParser::ParserConfiguration::from_json(object, &error);
+
+    EXPECT_FALSE(error.isEmpty());
+    EXPECT_TRUE(configuration.format.isEmpty());
+    EXPECT_TRUE(configuration.fields.isEmpty());
+}
+
+/**
  * @brief Verifies rejection when the fields member is missing or not an array.
  */
 TEST_F(ParserConfigurationTest, RejectsNonArrayFieldsMember)
@@ -157,6 +191,27 @@ TEST_F(ParserConfigurationTest, RejectsNonObjectFieldDefinition)
 }
 
 /**
+ * @brief Verifies that entries after the first malformed field are not decoded.
+ */
+TEST_F(ParserConfigurationTest, RejectsMalformedFieldBeforeLaterEntries)
+{
+    const QJsonObject valid_field{{QStringLiteral("id"), QStringLiteral("valid")}};
+
+    const QJsonObject object{
+        {QStringLiteral("format"), QStringLiteral("{valid}")},
+        {QStringLiteral("fields"), QJsonArray{QStringLiteral("invalid"), valid_field}}};
+
+    QString error;
+
+    const QtRecordParser::ParserConfiguration configuration =
+        QtRecordParser::ParserConfiguration::from_json(object, &error);
+
+    EXPECT_FALSE(error.isEmpty());
+    EXPECT_TRUE(configuration.format.isEmpty());
+    EXPECT_TRUE(configuration.fields.isEmpty());
+}
+
+/**
  * @brief Verifies rejection of empty and whitespace-only field identifiers.
  */
 TEST_F(ParserConfigurationTest, RejectsBlankFieldIdentifier)
@@ -176,4 +231,24 @@ TEST_F(ParserConfigurationTest, RejectsBlankFieldIdentifier)
     EXPECT_TRUE(configuration.format.isEmpty());
     EXPECT_TRUE(configuration.fields.isEmpty());
     EXPECT_TRUE(configuration.allow_unknown_fields);
+}
+
+/**
+ * @brief Verifies rejection when a field definition omits its identifier.
+ */
+TEST_F(ParserConfigurationTest, RejectsMissingFieldIdentifier)
+{
+    const QJsonObject field{{QStringLiteral("display_name"), QStringLiteral("Value")}};
+
+    const QJsonObject object{{QStringLiteral("format"), QStringLiteral("{value}")},
+                             {QStringLiteral("fields"), QJsonArray{field}}};
+
+    QString error;
+
+    const QtRecordParser::ParserConfiguration configuration =
+        QtRecordParser::ParserConfiguration::from_json(object, &error);
+
+    EXPECT_FALSE(error.isEmpty());
+    EXPECT_TRUE(configuration.format.isEmpty());
+    EXPECT_TRUE(configuration.fields.isEmpty());
 }
