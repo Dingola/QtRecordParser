@@ -118,13 +118,24 @@ QtRecordParser::ParserConfiguration configuration;
 configuration.format = QStringLiteral("{id};{name};{amount}");
 configuration.allow_unknown_fields = false;
 configuration.fields = {
-    {QStringLiteral("id"), QStringLiteral("Identifier"), QStringLiteral(R"(\d+)"),
-     QtRecordParser::ConverterId::Integer, QVariantMap(), true},
-    {QStringLiteral("name"), QStringLiteral("Name"), QStringLiteral(R"([^;]+)"),
-     QtRecordParser::ConverterId::Text, QVariantMap(), true},
-    {QStringLiteral("amount"), QStringLiteral("Amount"),
-     QStringLiteral(R"([+-]?\d+(?:\.\d+)?)"),
-     QtRecordParser::ConverterId::FloatingPoint, QVariantMap(), true}};
+    {.id = QStringLiteral("id"),
+     .display_name = QStringLiteral("Identifier"),
+     .capture_pattern = QStringLiteral(R"(\d+)"),
+     .converter_id = QtRecordParser::ConverterId::Integer,
+     .converter_options = {},
+     .trim_value = true},
+    {.id = QStringLiteral("name"),
+     .display_name = QStringLiteral("Name"),
+     .capture_pattern = QStringLiteral(R"([^;]+)"),
+     .converter_id = QtRecordParser::ConverterId::Text,
+     .converter_options = {},
+     .trim_value = true},
+    {.id = QStringLiteral("amount"),
+     .display_name = QStringLiteral("Amount"),
+     .capture_pattern = QStringLiteral(R"([+-]?\d+(?:\.\d+)?)"),
+     .converter_id = QtRecordParser::ConverterId::FloatingPoint,
+     .converter_options = {},
+     .trim_value = true}};
 
 const QtRecordParser::FormatRecordParser parser(configuration);
 const QtRecordParser::ParseResult result =
@@ -162,21 +173,23 @@ QtRecordParser::ParserConfiguration configuration;
 configuration.format = QStringLiteral("{active};{created_at}");
 configuration.allow_unknown_fields = false;
 configuration.fields = {
-    {QStringLiteral("active"), QStringLiteral("Active"),
-     QStringLiteral(R"(enabled|disabled)"), QtRecordParser::ConverterId::Boolean,
-     QVariantMap{{QStringLiteral("true_values"),
-                  QStringList{QStringLiteral("enabled")}},
-                 {QStringLiteral("false_values"),
-                  QStringList{QStringLiteral("disabled")}},
-                 {QStringLiteral("case_sensitive"), false}},
-     true},
-    {QStringLiteral("created_at"), QStringLiteral("Created at"),
-     QStringLiteral(R"(\d{2}\.\d{2}\.\d{4} \d{2}:\d{2})"),
-     QtRecordParser::ConverterId::DateTime,
-     QVariantMap{{QStringLiteral("accept_iso"), false},
-                 {QStringLiteral("formats"),
-                  QStringList{QStringLiteral("dd.MM.yyyy HH:mm")}}},
-     true}};
+    {.id = QStringLiteral("active"),
+     .display_name = QStringLiteral("Active"),
+     .capture_pattern = QStringLiteral(R"(enabled|disabled)"),
+     .converter_id = QtRecordParser::ConverterId::Boolean,
+     .converter_options =
+         {{QStringLiteral("true_values"), QStringList{QStringLiteral("enabled")}},
+          {QStringLiteral("false_values"), QStringList{QStringLiteral("disabled")}},
+          {QStringLiteral("case_sensitive"), false}},
+     .trim_value = true},
+    {.id = QStringLiteral("created_at"),
+     .display_name = QStringLiteral("Created at"),
+     .capture_pattern = QStringLiteral(R"(\d{2}\.\d{2}\.\d{4} \d{2}:\d{2})"),
+     .converter_id = QtRecordParser::ConverterId::DateTime,
+     .converter_options =
+         {{QStringLiteral("accept_iso"), false},
+          {QStringLiteral("formats"), QStringList{QStringLiteral("dd.MM.yyyy HH:mm")}}},
+     .trim_value = true}};
 
 const QtRecordParser::FormatRecordParser parser(configuration);
 const QtRecordParser::ParseResult result = parser.parse(

@@ -323,7 +323,11 @@ auto FormatRecordParser::find_configured_field(const QString& field_id) const
  */
 auto FormatRecordParser::create_default_field(const QString& field_id) -> FieldConfiguration
 {
-    return FieldConfiguration{field_id,          field_id,      QStringLiteral(".*?"),
-                              ConverterId::Text, QVariantMap(), false};
+    return FieldConfiguration{.id = field_id,
+                              .display_name = field_id,
+                              .capture_pattern = QStringLiteral(".*?"),
+                              .converter_id = ConverterId::Text,
+                              .converter_options = {},
+                              .trim_value = false};
 }
 }  // namespace QtRecordParser

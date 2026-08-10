@@ -18,11 +18,18 @@ TEST_F(ParserConfigurationTest, SerializesCompleteConfiguration)
     QtRecordParser::ParserConfiguration configuration;
     configuration.format = QStringLiteral("{identifier};{name}");
     configuration.allow_unknown_fields = false;
-    configuration.fields = {
-        {QStringLiteral("identifier"), QStringLiteral("Identifier"), QStringLiteral(R"([0-9a-f]+)"),
-         QtRecordParser::ConverterId::Integer, QVariantMap{{QStringLiteral("base"), 16}}, true},
-        {QStringLiteral("name"), QStringLiteral("Name"), QStringLiteral(R"([^;]+)"),
-         QtRecordParser::ConverterId::Text, QVariantMap(), false}};
+    configuration.fields = {{.id = QStringLiteral("identifier"),
+                             .display_name = QStringLiteral("Identifier"),
+                             .capture_pattern = QStringLiteral(R"([0-9a-f]+)"),
+                             .converter_id = QtRecordParser::ConverterId::Integer,
+                             .converter_options = {{QStringLiteral("base"), 16}},
+                             .trim_value = true},
+                            {.id = QStringLiteral("name"),
+                             .display_name = QStringLiteral("Name"),
+                             .capture_pattern = QStringLiteral(R"([^;]+)"),
+                             .converter_id = QtRecordParser::ConverterId::Text,
+                             .converter_options = {},
+                             .trim_value = false}};
 
     const QJsonObject object = configuration.to_json();
 
