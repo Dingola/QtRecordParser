@@ -133,6 +133,25 @@ TEST_F(BuiltInConvertersTest, AppliesConfiguredBooleanTokens)
 }
 
 /**
+ * @brief Verifies rejection of a token configured as both true and false.
+ */
+TEST_F(BuiltInConvertersTest, RejectsAmbiguousBooleanToken)
+{
+    const QtRecordParser::BooleanConverter converter;
+
+    const QVariantMap options{
+        {QStringLiteral("true_values"), QStringList{QStringLiteral("ambiguous")}},
+        {QStringLiteral("false_values"), QStringList{QStringLiteral("ambiguous")}}};
+
+    const QtRecordParser::ConversionResult result =
+        converter.convert(QStringLiteral("ambiguous"), options);
+
+    EXPECT_FALSE(result.success);
+    EXPECT_FALSE(result.error_message.isEmpty());
+    EXPECT_FALSE(result.value.isValid());
+}
+
+/**
  * @brief Verifies ISO-8601 and configured date-time formats.
  */
 TEST_F(BuiltInConvertersTest, ConvertsIsoAndConfiguredDateTimes)
@@ -164,6 +183,25 @@ TEST_F(BuiltInConvertersTest, ConvertsIsoAndConfiguredDateTimes)
     EXPECT_TRUE(custom.value.toDateTime().isValid());
     EXPECT_EQ(custom.value.toDateTime().date(), QDate(2026, 8, 9));
     EXPECT_EQ(custom.value.toDateTime().time(), QTime(13, 45));
+}
+
+/**
+ * @brief Verifies ordered custom-format fallback after ISO conversion fails.
+ */
+TEST_F(BuiltInConvertersTest, FallsBackToLaterConfiguredDateTimeFormat)
+{
+    const QtRecordParser::DateTimeConverter converter;
+
+    const QVariantMap options{
+        {QStringLiteral("formats"),
+         QStringList{QStringLiteral("yyyy/MM/dd HH:mm"), QStringLiteral("dd.MM.yyyy HH:mm")}}};
+
+    const QtRecordParser::ConversionResult result =
+        converter.convert(QStringLiteral("10.08.2026 14:30"), options);
+
+    ASSERT_TRUE(result.success);
+    EXPECT_EQ(result.value.toDateTime().date(), QDate(2026, 8, 10));
+    EXPECT_EQ(result.value.toDateTime().time(), QTime(14, 30));
 }
 
 /**

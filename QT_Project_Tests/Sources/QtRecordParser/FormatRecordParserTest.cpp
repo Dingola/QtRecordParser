@@ -33,6 +33,28 @@ class UppercaseConverter final: public QtRecordParser::ValueConverter
 };
 
 /**
+ * @class EmptyErrorConverter
+ * @brief Test converter that fails without providing an error message.
+ */
+class EmptyErrorConverter final: public QtRecordParser::ValueConverter
+{
+    public:
+        [[nodiscard]] auto get_id() const -> QString override
+        {
+            return QStringLiteral("empty_error");
+        }
+
+        [[nodiscard]] auto convert(QStringView input, const QVariantMap& options) const
+            -> QtRecordParser::ConversionResult override
+        {
+            Q_UNUSED(input);
+            Q_UNUSED(options);
+
+            return QtRecordParser::ConversionResult{QVariant(), QString(), false};
+        }
+};
+
+/**
  * @brief Verifies a non-log business record with several value types.
  */
 TEST_F(FormatRecordParserTest, ParsesTypedBusinessRecord)
@@ -154,6 +176,88 @@ TEST_F(FormatRecordParserTest, ReportsConversionFailure)
     EXPECT_EQ(result.error, QtRecordParser::ParseError::ConversionFailed);
     EXPECT_EQ(result.error_field, QStringLiteral("number"));
     EXPECT_TRUE(result.record.values.isEmpty());
+}
+
+/**
+ * @brief Verifies that a later conversion failure removes previously converted values.
+ */
+TEST_F(FormatRecordParserTest, ClearsPartialRecordAfterConversionFailure)
+{
+    QtRecordParser::ParserConfiguration configuration;
+    configuration.format = QStringLiteral("{first};{second}");
+    configuration.allow_unknown_fields = false;
+    configuration.fields = {{.id = QStringLiteral("first"),
+                             .display_name = QStringLiteral("First"),
+                             .capture_pattern = QStringLiteral(R"(\d+)"),
+                             .converter_id = QtRecordParser::ConverterId::Integer,
+                             .converter_options = {},
+                             .trim_value = false},
+                            {.id = QStringLiteral("second"),
+                             .display_name = QStringLiteral("Second"),
+                             .capture_pattern = QStringLiteral(R"(\S+)"),
+                             .converter_id = QtRecordParser::ConverterId::Integer,
+                             .converter_options = {},
+                             .trim_value = false}};
+
+    const QtRecordParser::FormatRecordParser parser(configuration);
+    const QtRecordParser::ParseResult result =
+        parser.parse(QStringLiteral("42;invalid"), QStringLiteral("source"));
+
+    EXPECT_EQ(result.error, QtRecordParser::ParseError::ConversionFailed);
+    EXPECT_EQ(result.error_field, QStringLiteral("second"));
+    EXPECT_TRUE(result.record.values.isEmpty());
+}
+
+/**
+ * @brief Verifies the parser fallback when a converter provides no error message.
+ */
+TEST_F(FormatRecordParserTest, ProvidesFallbackConversionErrorMessage)
+{
+    QtRecordParser::ConverterRegistry registry =
+        QtRecordParser::ConverterRegistry::create_default();
+
+    ASSERT_TRUE(registry.add(std::make_shared<EmptyErrorConverter>()));
+
+    QtRecordParser::ParserConfiguration configuration;
+    configuration.format = QStringLiteral("{value}");
+    configuration.allow_unknown_fields = false;
+    configuration.fields = {{.id = QStringLiteral("value"),
+                             .display_name = QStringLiteral("Value"),
+                             .capture_pattern = QStringLiteral(".*"),
+                             .converter_id = QStringLiteral("empty_error"),
+                             .converter_options = {},
+                             .trim_value = false}};
+
+    const QtRecordParser::FormatRecordParser parser(configuration, registry);
+    const QtRecordParser::ParseResult result =
+        parser.parse(QStringLiteral("content"), QStringLiteral("source"));
+
+    EXPECT_EQ(result.error, QtRecordParser::ParseError::ConversionFailed);
+    EXPECT_EQ(result.error_field, QStringLiteral("value"));
+    EXPECT_EQ(result.error_message, QStringLiteral("Could not convert field 'value'."));
+}
+
+/**
+ * @brief Verifies validation of a blank field identifier created directly in C++.
+ */
+TEST_F(FormatRecordParserTest, RejectsBlankConfiguredFieldIdentifier)
+{
+    QtRecordParser::ParserConfiguration configuration;
+    configuration.format = QStringLiteral("{value}");
+    configuration.fields = {{.id = QStringLiteral("   "),
+                             .display_name = QStringLiteral("Value"),
+                             .capture_pattern = QStringLiteral(".*"),
+                             .converter_id = QtRecordParser::ConverterId::Text,
+                             .converter_options = {},
+                             .trim_value = false}};
+
+    const QtRecordParser::FormatRecordParser parser(configuration);
+    const QtRecordParser::ParseResult result =
+        parser.parse(QStringLiteral("content"), QStringLiteral("source"));
+
+    EXPECT_FALSE(parser.is_valid());
+    EXPECT_FALSE(parser.get_configuration_error().isEmpty());
+    EXPECT_EQ(result.error, QtRecordParser::ParseError::InvalidConfiguration);
 }
 
 /**
