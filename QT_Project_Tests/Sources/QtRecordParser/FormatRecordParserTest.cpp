@@ -184,7 +184,7 @@ TEST_F(FormatRecordParserTest, ReportsConversionFailure)
 TEST_F(FormatRecordParserTest, ClearsPartialRecordAfterConversionFailure)
 {
     QtRecordParser::ParserConfiguration configuration;
-    configuration.format = QStringLiteral("{first};{second}");
+    configuration.format = QStringLiteral("{first};{second};{third}");
     configuration.allow_unknown_fields = false;
     configuration.fields = {{.id = QStringLiteral("first"),
                              .display_name = QStringLiteral("First"),
@@ -197,11 +197,17 @@ TEST_F(FormatRecordParserTest, ClearsPartialRecordAfterConversionFailure)
                              .capture_pattern = QStringLiteral(R"(\S+)"),
                              .converter_id = QtRecordParser::ConverterId::Integer,
                              .converter_options = {},
+                             .trim_value = false},
+                            {.id = QStringLiteral("third"),
+                             .display_name = QStringLiteral("Third"),
+                             .capture_pattern = QStringLiteral(R"(\d+)"),
+                             .converter_id = QtRecordParser::ConverterId::Integer,
+                             .converter_options = {},
                              .trim_value = false}};
 
     const QtRecordParser::FormatRecordParser parser(configuration);
     const QtRecordParser::ParseResult result =
-        parser.parse(QStringLiteral("42;invalid"), QStringLiteral("source"));
+        parser.parse(QStringLiteral("42;invalid;84"), QStringLiteral("source"));
 
     EXPECT_EQ(result.error, QtRecordParser::ParseError::ConversionFailed);
     EXPECT_EQ(result.error_field, QStringLiteral("second"));
@@ -341,6 +347,23 @@ TEST_F(FormatRecordParserTest, RejectsUnknownConverter)
 }
 
 /**
+ * @brief Verifies converter lookup for an automatically resolved text field.
+ */
+TEST_F(FormatRecordParserTest, RejectsUnknownFieldWhenDefaultConverterIsUnavailable)
+{
+    QtRecordParser::ParserConfiguration configuration;
+    configuration.format = QStringLiteral("{unknown}");
+    configuration.allow_unknown_fields = true;
+
+    const QtRecordParser::ConverterRegistry empty_registry;
+    const QtRecordParser::FormatRecordParser parser(configuration, empty_registry);
+
+    EXPECT_FALSE(parser.is_valid());
+    EXPECT_TRUE(parser.get_configuration_error().contains(QtRecordParser::ConverterId::Text));
+    EXPECT_TRUE(parser.get_configuration_error().contains(QStringLiteral("unknown")));
+}
+
+/**
  * @brief Verifies rejection of duplicate explicitly configured field identifiers.
  */
 TEST_F(FormatRecordParserTest, RejectsDuplicateFieldConfigurations)
@@ -397,6 +420,28 @@ TEST_F(FormatRecordParserTest, RejectsInvalidCapturePatterns)
     EXPECT_FALSE(empty_parser.get_configuration_error().isEmpty());
     EXPECT_FALSE(invalid_parser.is_valid());
     EXPECT_FALSE(invalid_parser.get_configuration_error().isEmpty());
+}
+
+/**
+ * @brief Verifies rejection when valid field patterns create an invalid combined pattern.
+ */
+TEST_F(FormatRecordParserTest, RejectsInvalidGeneratedPattern)
+{
+    QtRecordParser::ParserConfiguration configuration;
+    configuration.format = QStringLiteral("{value}");
+    configuration.allow_unknown_fields = false;
+    configuration.fields = {{.id = QStringLiteral("value"),
+                             .display_name = QStringLiteral("Value"),
+                             .capture_pattern = QStringLiteral("(?<field_0>.*)"),
+                             .converter_id = QtRecordParser::ConverterId::Text,
+                             .converter_options = {},
+                             .trim_value = false}};
+
+    const QtRecordParser::FormatRecordParser parser(configuration);
+
+    EXPECT_FALSE(parser.is_valid());
+    EXPECT_TRUE(
+        parser.get_configuration_error().startsWith(QStringLiteral("Generated parser pattern")));
 }
 
 /**
@@ -461,6 +506,30 @@ TEST_F(FormatRecordParserTest, EscapesFixedFormatText)
     EXPECT_TRUE(exact.succeeded());
     EXPECT_EQ(exact.record.value(QStringLiteral("value")).toString(), QStringLiteral("text"));
     EXPECT_EQ(regex_like.error, QtRecordParser::ParseError::PatternMismatch);
+}
+
+/**
+ * @brief Verifies access to the compiled generated regular expression.
+ */
+TEST_F(FormatRecordParserTest, ExposesGeneratedPattern)
+{
+    QtRecordParser::ParserConfiguration configuration;
+    configuration.format = QStringLiteral("item:{number}");
+    configuration.allow_unknown_fields = false;
+    configuration.fields = {{.id = QStringLiteral("number"),
+                             .display_name = QStringLiteral("Number"),
+                             .capture_pattern = QStringLiteral(R"(\d+)"),
+                             .converter_id = QtRecordParser::ConverterId::Integer,
+                             .converter_options = {},
+                             .trim_value = false}};
+
+    const QtRecordParser::FormatRecordParser parser(configuration);
+    const QRegularExpression pattern = parser.get_pattern();
+
+    ASSERT_TRUE(pattern.isValid());
+    EXPECT_TRUE(pattern.match(QStringLiteral("item:42")).hasMatch());
+    EXPECT_FALSE(pattern.match(QStringLiteral("prefix-item:42")).hasMatch());
+    EXPECT_FALSE(pattern.match(QStringLiteral("item:42-suffix")).hasMatch());
 }
 
 /**
