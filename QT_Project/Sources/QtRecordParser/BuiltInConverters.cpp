@@ -171,12 +171,7 @@ auto DateTimeConverter::convert(QStringView input,
 
     if (accept_iso)
     {
-        date_time = QDateTime::fromString(text, Qt::ISODateWithMs);
-
-        if (!date_time.isValid())
-        {
-            date_time = QDateTime::fromString(text, Qt::ISODate);
-        }
+        date_time = QDateTime::fromString(text, Qt::ISODate);
     }
 
     for (qsizetype index = 0; index < formats.size() && !date_time.isValid(); ++index)

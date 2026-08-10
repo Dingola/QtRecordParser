@@ -55,13 +55,18 @@ TEST_F(BuiltInConvertersTest, RejectsInvalidIntegers)
     const QtRecordParser::ConversionResult malformed =
         converter.convert(QStringLiteral("12x"), QVariantMap());
 
-    const QtRecordParser::ConversionResult invalid_base =
+    const QtRecordParser::ConversionResult base_below_range =
+        converter.convert(QStringLiteral("10"), QVariantMap{{QStringLiteral("base"), 1}});
+
+    const QtRecordParser::ConversionResult base_above_range =
         converter.convert(QStringLiteral("10"), QVariantMap{{QStringLiteral("base"), 37}});
 
     EXPECT_FALSE(malformed.success);
     EXPECT_FALSE(malformed.error_message.isEmpty());
-    EXPECT_FALSE(invalid_base.success);
-    EXPECT_FALSE(invalid_base.error_message.isEmpty());
+    EXPECT_FALSE(base_below_range.success);
+    EXPECT_FALSE(base_below_range.error_message.isEmpty());
+    EXPECT_FALSE(base_above_range.success);
+    EXPECT_FALSE(base_above_range.error_message.isEmpty());
 }
 
 /**
@@ -137,6 +142,9 @@ TEST_F(BuiltInConvertersTest, ConvertsIsoAndConfiguredDateTimes)
     const QtRecordParser::ConversionResult iso =
         converter.convert(QStringLiteral("2026-08-09T13:45:12.123Z"), QVariantMap());
 
+    const QtRecordParser::ConversionResult iso_without_milliseconds =
+        converter.convert(QStringLiteral("2026-08-09T13:45:12Z"), QVariantMap());
+
     const QVariantMap custom_options{
         {QStringLiteral("accept_iso"), false},
         {QStringLiteral("formats"), QStringList{QStringLiteral("dd.MM.yyyy HH:mm")}}};
@@ -147,6 +155,10 @@ TEST_F(BuiltInConvertersTest, ConvertsIsoAndConfiguredDateTimes)
     ASSERT_TRUE(iso.success);
     EXPECT_TRUE(iso.value.toDateTime().isValid());
     EXPECT_EQ(iso.value.toDateTime().date(), QDate(2026, 8, 9));
+
+    ASSERT_TRUE(iso_without_milliseconds.success);
+    EXPECT_TRUE(iso_without_milliseconds.value.toDateTime().isValid());
+    EXPECT_EQ(iso_without_milliseconds.value.toDateTime().date(), QDate(2026, 8, 9));
 
     ASSERT_TRUE(custom.success);
     EXPECT_TRUE(custom.value.toDateTime().isValid());
